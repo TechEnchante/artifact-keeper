@@ -40,6 +40,7 @@ pub fn create_router(state: SharedState) -> Router {
         .nest("/npm", handlers::npm::router())
         .nest("/maven", handlers::maven::router())
         .nest("/pypi", handlers::pypi::router())
+        .merge(handlers::pypi::compat_router())
         .nest("/debian", handlers::debian::router())
         .nest("/nuget", handlers::nuget::router())
         .nest("/rpm", handlers::rpm::router())
