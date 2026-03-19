@@ -14,7 +14,7 @@ use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::Extension;
 use axum::Router;
@@ -49,6 +49,57 @@ pub fn router() -> Router<SharedState> {
             get(download_or_metadata),
         )
         .layer(DefaultBodyLimit::max(512 * 1024 * 1024)) // 512 MB
+}
+
+/// Backwards-compatibility routes for older/misleading PyPI path examples.
+///
+/// Canonical PyPI routes are mounted at `/pypi/{repo_key}/...`. These redirects
+/// allow clients that try `/{repo_key}/simple` to land on the implemented path.
+///
+/// Examples:
+///   GET /python/simple                -> /pypi/python/simple
+///   GET /python/simple/requests/      -> /pypi/python/simple/requests/
+///   GET /pypi-proxy/simple/requests   -> /pypi/pypi-proxy/simple/requests
+pub fn compat_router() -> Router<SharedState> {
+    Router::new()
+        .route(
+            "/:repo_key/simple/",
+            get(compat_simple_root_trailing),
+        )
+        .route("/:repo_key/simple", get(compat_simple_root))
+        .route(
+            "/:repo_key/simple/:project/",
+            get(compat_simple_project_trailing),
+        )
+        .route("/:repo_key/simple/:project", get(compat_simple_project))
+        .route(
+            "/:repo_key/simple/:project/:filename",
+            get(compat_simple_file),
+        )
+}
+
+async fn compat_simple_root(Path(repo_key): Path<String>) -> Redirect {
+    Redirect::permanent(&format!("/pypi/{repo_key}/simple"))
+}
+
+async fn compat_simple_root_trailing(Path(repo_key): Path<String>) -> Redirect {
+    Redirect::permanent(&format!("/pypi/{repo_key}/simple/"))
+}
+
+async fn compat_simple_project(Path((repo_key, project)): Path<(String, String)>) -> Redirect {
+    Redirect::permanent(&format!("/pypi/{repo_key}/simple/{project}"))
+}
+
+async fn compat_simple_project_trailing(
+    Path((repo_key, project)): Path<(String, String)>,
+) -> Redirect {
+    Redirect::permanent(&format!("/pypi/{repo_key}/simple/{project}/"))
+}
+
+async fn compat_simple_file(
+    Path((repo_key, project, filename)): Path<(String, String, String)>,
+) -> Redirect {
+    Redirect::permanent(&format!("/pypi/{repo_key}/simple/{project}/{filename}"))
 }
 
 // ---------------------------------------------------------------------------
